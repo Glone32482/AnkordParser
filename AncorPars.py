@@ -8,6 +8,50 @@ from googleapiclient.discovery import build
 import re
 import gspread
 from urllib.parse import urljoin, urlparse, urlparse
+from streamlit_lottie import st_lottie
+import json
+import os
+
+# Функція для завантаження Lottie анімації з локального файлу
+def load_lottie_file(filepath: str):
+    try:
+        # Спробуємо відкрити як бінарний файл
+        import zipfile
+        import io
+        
+        with open(filepath, "rb") as f:
+            # .lottie файли це zip архіви
+            with zipfile.ZipFile(io.BytesIO(f.read())) as zip_file:
+                # Шукаємо animations/animation_1.json або схожі
+                for file_name in zip_file.namelist():
+                    if file_name.endswith('.json'):
+                        with zip_file.open(file_name) as json_file:
+                            return json.load(json_file)
+    except zipfile.BadZipFile:
+        # Якщо це не zip, спробуємо як звичайний JSON
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            pass
+    except Exception as e:
+        st.error(f"Помилка завантаження анімації: {e}")
+    
+    return None
+
+# Функція для завантаження Lottie анімації з URL
+def load_lottie_url(url: str):
+    try:
+        r = requests.get(url)
+        if r.status_code != 200:
+            return None
+        return r.json()
+    except Exception as e:
+        print(f"Error loading Lottie: {e}")
+        return None
+
+# Завантажуємо анімацію один раз при старті
+LOTTIE_ANIMATION = load_lottie_file("Female Employee Working on Data Security.json")
 
 # Налаштування сторінки
 st.set_page_config(
@@ -16,18 +60,237 @@ st.set_page_config(
     layout="wide"
 )
 
+# CSS анімації та стилі
+st.markdown("""
+<style>
+    /* М'який темний фон для основного екрану */
+    .main {
+        background: linear-gradient(135deg, #1e1e2e 0%, #2a2a40 100%);
+    }
+    
+    /* Світліший текст для читабельності */
+    .main h1, .main h2, .main h3, .main p, .main label {
+        color: #e0e0e0 !important;
+    }
+    
+    /* Анімація для кнопок */
+    @keyframes pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+        100% { transform: scale(1); }
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    /* Стилі для кнопок */
+    .stButton > button {
+        transition: all 0.3s ease;
+        border-radius: 10px;
+        font-weight: 600;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+    }
+    
+    .stButton > button:hover {
+        animation: pulse 0.6s ease-in-out;
+        box-shadow: 0 5px 15px rgba(102, 126, 234, 0.5);
+        transform: translateY(-2px);
+    }
+    
+    /* Анімація для метрик */
+    [data-testid="stMetricValue"] {
+        animation: fadeIn 0.8s ease-out;
+        font-size: 2rem !important;
+    }
+    
+    /* Градієнтний фон для sidebar */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+    }
+    
+    [data-testid="stSidebar"] label, [data-testid="stSidebar"] p {
+        color: white !important;
+    }
+    
+    /* Анімація для expander */
+    .streamlit-expanderHeader {
+        transition: all 0.3s ease;
+        background: rgba(102, 126, 234, 0.1);
+        border-radius: 5px;
+    }
+    
+    .streamlit-expanderHeader:hover {
+        background-color: rgba(118, 75, 162, 0.2);
+    }
+    
+    /* Анімація для success/error повідомлень */
+    .stAlert {
+        animation: fadeIn 0.5s ease-out;
+        border-radius: 10px;
+    }
+    
+    /* Пульсуючі статус індикатори */
+    @keyframes statusPulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.6; }
+    }
+    
+    /* Плавна поява заголовків */
+    h1, h2, h3 {
+        animation: fadeIn 0.6s ease-out;
+    }
+    
+    /* Кольоровий progress bar */
+    .stProgress > div > div > div > div {
+        background: linear-gradient(90deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+    }
+    
+    /* Анімація для статистичних карток */
+    [data-testid="metric-container"] {
+        background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%);
+        border-radius: 10px;
+        padding: 15px;
+        transition: transform 0.3s ease;
+        border: 1px solid rgba(102, 126, 234, 0.3);
+    }
+    
+    [data-testid="metric-container"]:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+    }
+    
+    /* Стилі для input полів */
+    .stTextInput > div > div > input {
+        background-color: rgba(255, 255, 255, 0.05);
+        color: #e0e0e0;
+        border: 1px solid rgba(102, 126, 234, 0.3);
+    }
+    
+    /* Стилі для dataframe */
+    .stDataFrame {
+        background-color: rgba(255, 255, 255, 0.05);
+        border-radius: 10px;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # Ініціалізація session state
 if 'data' not in st.session_state:
     st.session_state.data = None
 if 'selected_row' not in st.session_state:
     st.session_state.selected_row = None
 
+def _get_service_account_info():
+    """
+    Надійно отримує інформацію сервісного акаунта з різних джерел:
+    1) st.secrets["gcp_service_account"] — рекомендований TOML-блок у Cloud
+    2) st.secrets["GCP_SERVICE_ACCOUNT_JSON"] — JSON-рядок із ключем
+    3) env GOOGLE_CREDENTIALS — base64-рядок із повним JSON
+    Якщо жодного джерела не знайдено — показує зрозумілу помилку та зупиняє додаток
+    """
+    # 1) Primary: TOML table in Cloud secrets
+    try:
+        if "gcp_service_account" in st.secrets:
+            # Приводимо до звичайного dict
+            return dict(st.secrets["gcp_service_account"])  # type: ignore
+    except Exception:
+        pass
+
+    # 2) JSON string secret
+    try:
+        if "GCP_SERVICE_ACCOUNT_JSON" in st.secrets:
+            import json
+            raw = st.secrets["GCP_SERVICE_ACCOUNT_JSON"]
+            return json.loads(raw)
+    except Exception:
+        pass
+
+    # 3) Base64 in environment
+    try:
+        import os, json, base64
+        if "GOOGLE_CREDENTIALS" in os.environ:
+            raw_b64 = os.environ.get("GOOGLE_CREDENTIALS", "")
+            raw = base64.b64decode(raw_b64).decode("utf-8")
+            return json.loads(raw)
+    except Exception:
+        pass
+
+    st.error(
+        "Не знайдено сервісний акаунт у секретах. Додайте блок [gcp_service_account] у Cloud Secrets, або GCP_SERVICE_ACCOUNT_JSON (JSON-рядок), або перемінну середовища GOOGLE_CREDENTIALS (base64)."
+    )
+    st.stop()
+
+def _resolve_spreadsheet():
+    """
+    Отримує ідентифікатор або URL таблиці з Secrets або змінних середовища.
+    Повертає рядок (URL або ID). Якщо не знайдено — показує помилку та зупиняє додаток.
+    """
+    # 1) Пробуємо стандартний шлях у Cloud secrets: [connections.gsheets].spreadsheet
+    try:
+        spreadsheet = st.secrets["connections"]["gsheets"]["spreadsheet"]
+        if spreadsheet:
+            return spreadsheet
+    except Exception:
+        pass
+
+    # 2) Альтернатива: верхній рівень ключів (якщо користувач поклав без секції)
+    try:
+        spreadsheet = st.secrets["spreadsheet"]
+        if spreadsheet:
+            return spreadsheet
+    except Exception:
+        pass
+
+    # 3) Env fallback
+    try:
+        import os
+        spreadsheet = os.environ.get("SPREADSHEET_URL") or os.environ.get("SPREADSHEET_ID")
+        if spreadsheet:
+            return spreadsheet
+    except Exception:
+        pass
+
+    st.error("Не знайдено параметр 'spreadsheet' у [connections.gsheets] Secrets або в env (SPREADSHEET_URL / SPREADSHEET_ID).")
+    st.stop()
+
+def _resolve_worksheet(sh):
+    """
+    Повертає потрібний worksheet за назвою або індексом із Secrets.
+    Пріоритет:
+    1) [connections.gsheets].worksheet (назва)
+    2) [connections.gsheets].worksheet_index (індекс, 0-базований)
+    3) Перший аркуш (індекс 0)
+    """
+    # 1) За назвою
+    try:
+        ws_name = st.secrets["connections"]["gsheets"].get("worksheet")
+        if ws_name:
+            return sh.worksheet(ws_name)
+    except Exception:
+        pass
+
+    # 2) За індексом
+    try:
+        ws_index = st.secrets["connections"]["gsheets"].get("worksheet_index")
+        if isinstance(ws_index, int):
+            return sh.get_worksheet(ws_index)
+    except Exception:
+        pass
+
+    # 3) За замовчуванням — перший аркуш
+    return sh.get_worksheet(0)
+
 # Функція для отримання Google Docs API клієнта
 @st.cache_resource
 def get_docs_service():
     try:
+        info = _get_service_account_info()
         credentials = service_account.Credentials.from_service_account_info(
-            st.secrets["gcp_service_account"],
+            info,
             scopes=["https://www.googleapis.com/auth/documents.readonly"]
         )
         service = build('docs', 'v1', credentials=credentials)
@@ -40,22 +303,25 @@ def get_docs_service():
 @st.cache_data(ttl=600)
 def load_data_from_sheets():
     try:
-        # Используем gspread + service account из st.secrets
+        # Використовуємо сервісний акаунт із надійного хелпера
+        info = _get_service_account_info()
         creds = service_account.Credentials.from_service_account_info(
-            st.secrets["gcp_service_account"],
+            info,
             scopes=["https://www.googleapis.com/auth/spreadsheets.readonly"]
         )
 
-        client = gspread.Client(auth=creds)
+        # Авторизація gspread
+        client = gspread.authorize(creds)
 
-        spreadsheet = st.secrets["connections"]["gsheets"]["spreadsheet"]
+        # Отримуємо URL або ID таблиці
+        spreadsheet = _resolve_spreadsheet()
         # Поддержка URL или ID
         if isinstance(spreadsheet, str) and spreadsheet.startswith("http"):
             sh = client.open_by_url(spreadsheet)
         else:
             sh = client.open_by_key(spreadsheet)
 
-        worksheet = sh.get_worksheet(0)
+        worksheet = _resolve_worksheet(sh)
         
         # Читаємо всі дані як список списків, щоб уникнути помилки з дублікатами в заголовках
         all_values = worksheet.get_all_values()
@@ -94,9 +360,17 @@ def load_data_from_sheets():
         if df.shape[1] > 10:
             df = df.iloc[:, :10]
 
-        # Очистка данных
-        df = df.dropna(subset=['Посилання на відповідь анотацію, анкор', 'Посилання на сайті'])
-        df = df.reset_index(drop=True)
+        # Фільтрація порожніх рядків у необхідних колонках
+        required_cols = ['Посилання на відповідь анотацію, анкор', 'Посилання на сайті']
+        for col in required_cols:
+            if col not in df.columns:
+                st.error(f"У таблиці відсутня колонка: {col}")
+                return pd.DataFrame()
+        mask = (
+            df['Посилання на відповідь анотацію, анкор'].astype(str).str.strip().ne('') &
+            df['Посилання на сайті'].astype(str).str.strip().ne('')
+        )
+        df = df[mask].reset_index(drop=True)
 
         return df
     except Exception as e:
@@ -418,6 +692,108 @@ def get_page_text(page_url):
         st.warning(f"Помилка завантаження сторінки {page_url}: {e}")
         return ""
 
+# Функція для перевірки наявності тега <script type="application/ld+json">
+@st.cache_data(ttl=3600)
+def check_ld_json_script(page_url):
+    """
+    Перевіряє наявність тега <script type="application/ld+json"> на сторінці
+    Повертає True якщо тег знайдено, False якщо ні
+    """
+    if not page_url:
+        return False
+    
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+        response = requests.get(page_url, headers=headers, timeout=10)
+        response.raise_for_status()
+        
+        soup = BeautifulSoup(response.content, 'html.parser')
+        
+        # Шукаємо тег <script type="application/ld+json">
+        ld_json_scripts = soup.find_all('script', type='application/ld+json')
+        
+        return len(ld_json_scripts) > 0
+    except Exception as e:
+        st.warning(f"Помилка перевірки тега ld+json на {page_url}: {e}")
+        return False
+
+# Функція для завантаження даних з листа "Перевірка контенту"
+@st.cache_data(ttl=600)
+def load_content_check_data():
+    try:
+        # Використовуємо сервісний акаунт
+        info = _get_service_account_info()
+        creds = service_account.Credentials.from_service_account_info(
+            info,
+            scopes=["https://www.googleapis.com/auth/spreadsheets.readonly"]
+        )
+
+        # Авторизація gspread
+        client = gspread.authorize(creds)
+
+        # Відкриваємо таблицю за URL
+        spreadsheet_url = "https://docs.google.com/spreadsheets/d/11Eo7g0Fpyi-ErgVl0qO_4xAehXUT4d1CFDPzYgdotFM/edit?usp=sharing"
+        sh = client.open_by_url(spreadsheet_url)
+        
+        # Отримуємо аркуш за gid
+        # gid=728876521 - 'ТЗ тексты ИИ Ч.2 ВЕРЕСЕНЬ 2025'
+        worksheet = None
+        for ws in sh.worksheets():
+            if ws.id == 728876521:
+                worksheet = ws
+                st.info(f"✅ Відкрито аркуш: '{ws.title}' (gid: {ws.id})")
+                break
+        
+        if not worksheet:
+            st.error("Не знайдено аркуш з gid=728876521")
+            return pd.DataFrame()
+        
+        # Читаємо всі дані
+        all_values = worksheet.get_all_values()
+        
+        if not all_values or len(all_values) < 2:
+            return pd.DataFrame()
+
+        # Створюємо DataFrame
+        df = pd.DataFrame(all_values)
+        
+        # Заголовки знаходяться в рядку 1 (індекс 1), а не в рядку 0
+        header = df.iloc[1].tolist()
+        
+        # Створюємо унікальні імена для колонок
+        new_columns = []
+        col_counts = {}
+        for i, col in enumerate(header):
+            if not col:
+                col = f'Unnamed.{i}'
+            if col in col_counts:
+                col_counts[col] += 1
+                new_columns.append(f"{col}_{col_counts[col]}")
+            else:
+                col_counts[col] = 0
+                new_columns.append(col)
+        
+        df.columns = new_columns
+        # Видаляємо перші 2 рядки (рядок 0 з загальним заголовком і рядок 1 з назвами колонок)
+        df = df.iloc[2:].reset_index(drop=True)
+
+        # Перевіряємо наявність колонки "URL"
+        if 'URL' not in df.columns:
+            st.error(f"У таблиці відсутня колонка: 'URL'")
+            st.error(f"Доступні колонки: {list(df.columns)}")
+            return pd.DataFrame()
+        
+        # Фільтруємо порожні рядки
+        mask = df['URL'].astype(str).str.strip().ne('')
+        df = df[mask].reset_index(drop=True)
+
+        return df
+    except Exception as e:
+        st.error(f"Помилка завантаження даних для перевірки контенту: {e}")
+        return None
+
 
 
 
@@ -691,443 +1067,731 @@ def compare_texts(doc_fragment, page_text, threshold=75, chunk_size=300):
 
     return min_score, avg_score, missing_fragments
 
-# Заголовок
-st.title("📄 Перевірка розміщення текстів з Google Docs")
+# Бічна панель з вибором режиму
+with st.sidebar:
+    st.title("🎯 Навігація")
+    mode = st.radio(
+        "Оберіть режим роботи:",
+        ["📝 Перевірка контенту", "🔍 Перевірка розміщення текстів"],
+        key="mode_selector"
+    )
+    st.markdown("---")
+
+# Заголовок з міні-анімацією
+if mode == "📝 Перевірка контенту":
+    col_title1, col_title2 = st.columns([5, 1])
+    with col_title1:
+        st.title("🔍 Перевірка контенту сторінок")
+    with col_title2:
+        if LOTTIE_ANIMATION:
+            st_lottie(LOTTIE_ANIMATION, height=120, key="header_anim_1")
+else:
+    col_title1, col_title2 = st.columns([5, 1])
+    with col_title1:
+        st.title("📄 Перевірка розміщення текстів з Google Docs")
+    with col_title2:
+        if LOTTIE_ANIMATION:
+            st_lottie(LOTTIE_ANIMATION, height=120, key="header_anim_2")
+
 st.markdown("---")
 
-# Бічна панель з налаштуваннями
-with st.sidebar:
-    st.header("⚙️ Налаштування")
-    
-    threshold = st.slider(
-        "Поріг подібності (%)",
-        min_value=0,
-        max_value=100,
-        value=75,
-        help="Мінімальний відсоток схожості для вважання тексту розміщеним"
-    )
-    
-    chunk_size = st.slider(
-        "Розмір фрагмента (слова)",
-        min_value=100,
-        max_value=500,
-        value=300,
-        step=50,
-        help="Кількість слів у кожному фрагменті для перевірки"
-    )
-    
-    show_problems_only = st.checkbox(
-        "Показати тільки проблемні записи",
-        value=False
-    )
-    
+# Режим 1: Перевірка контенту
+if mode == "📝 Перевірка контенту":
+    # Бічна панель з налаштуваннями
+    with st.sidebar:
+        st.header("⚙️ Налаштування")
+        
+        threshold = st.slider(
+            "Поріг подібності (%)",
+            min_value=0,
+            max_value=100,
+            value=75,
+            help="Мінімальний відсоток схожості для вважання тексту розміщеним"
+        )
+        
+        chunk_size = st.slider(
+            "Розмір фрагмента (слова)",
+            min_value=100,
+            max_value=500,
+            value=300,
+            step=50,
+            help="Кількість слів у кожному фрагменті для перевірки"
+        )
+        
+        show_problems_only = st.checkbox(
+            "Показати тільки проблемні записи",
+            value=False
+        )
+        
+        st.markdown("---")
+        
+        # Кнопка оновлення
+        if st.button("🔄 Оновити дані", use_container_width=True):
+            st.cache_data.clear()
+            st.session_state.data = None
+            st.rerun()
+        
+        st.markdown("---")
+        st.markdown("### 📊 Легенда")
+        st.markdown(f"""
+        - 🟢 **Добре**: ≥ {threshold}%
+        - 🟡 **Увага**: {threshold-15}–{threshold-1}%
+        - 🔴 **Проблема**: < {threshold-15}%
+        """)
+
+    # Завантаження даних
+    if st.session_state.data is None:
+        with st.spinner('Завантаження даних з Google Sheets...'):
+            st.session_state.data = load_data_from_sheets()
+
+    df = st.session_state.data
+
+    if df is not None and not df.empty:
+        st.success(f"✅ Завантажено {len(df)} записів")
+        
+        # Кнопка для запуску перевірки
+        col1, col2, col3 = st.columns([2, 1, 1])
+        with col1:
+            if st.button("🚀 Запустити перевірку всіх записів", type="primary", use_container_width=True):
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                
+                results = []
+                for idx, row in df.iterrows():
+                    status_text.text(f"Перевірка {idx + 1} з {len(df)}: {row.get('Питання UKR', 'N/A')}")
+
+                    doc_url = row.get('Посилання на відповідь анотацію, анкор', '')
+                    base_page_url = row.get('Посилання на сайті', '') or row.get('Посилання', '') or row.get('Посилання на сторінці', '') or row.get('URL', '') or ''
+
+                    # Перевірка валідності URL
+                    if not base_page_url or not (base_page_url.startswith('http://') or base_page_url.startswith('https://')):
+                        st.warning(f"Пропущено запис {idx + 1} через невалідний URL: {base_page_url}")
+                        results.append({
+                            'Питання UKR': row.get('Питання UKR', 'N/A'),
+                            'Статус': 'Помилка',
+                            'Деталі': f"Невалідний або відсутній URL: {base_page_url}",
+                            'page_url_ru': base_page_url,
+                            'page_url_ua': base_page_url,
+                            'doc_url': doc_url,
+                            'score_ru': 0,
+                            'score_ua': 0,
+                            'has_editor_ru': False,
+                            'has_editor_ua': False,
+                            'found_editors_ru': [],
+                            'found_editors_ua': [],
+                            'references_links_ru': [],
+                            'references_links_ua': []
+                        })
+                        continue
+
+                    # Генерація URL для кожної локалі
+                    page_url_ru = generate_russian_url(base_page_url)
+                    page_url_ua = generate_ukrainian_url(base_page_url)
+
+                    # Отримання текстів для російської локалі
+                    doc_text = get_doc_text(doc_url)
+                    page_text_ru = get_page_text(page_url_ru)
+                    
+                    # Витягування фрагмента "Аннотация" для російської локалі
+                    doc_fragment_ru = extract_annotation_fragment(doc_text)
+                    
+                    # Перевірка: якщо фрагмент занадто довгий (більше 80% від всього тексту),
+                    # можливо маркер не знайдено і повернуто весь текст
+                    if doc_fragment_ru and len(doc_fragment_ru) > len(doc_text) * 0.8:
+                        # Спробуємо знайти "Аннотация" вручну
+                        annotation_match = re.search(r'Аннотация\s*:\s*(.*?)(?=\s*(?:Анкор|Перевод|$))', doc_text, re.IGNORECASE | re.DOTALL)
+                        if annotation_match:
+                            doc_fragment_ru = annotation_match.group(1).strip()
+                    
+                    # Витягування посилань з блоку "Список использованной литературы" зі сторінки сайту (російська)
+                    references_links_ru = extract_references_section(page_url_ru)
+                    
+                    # Перевірка наявності редакторів на сторінці (російська)
+                    has_editor_ru, found_editors_ru = check_editors_on_page(page_text_ru)
+
+                    # Порівняння для російської локалі
+                    min_sim_ru, avg_sim_ru, missing_ru = compare_texts(
+                        doc_fragment_ru, page_text_ru, threshold, chunk_size
+                    )
+
+                    # Перевірка української локалі
+                    page_text_ua = get_page_text(page_url_ua) if page_url_ua else ""
+                    
+                    # Витягування фрагмента "Перевод аннотации" для української локалі
+                    doc_fragment_ua = extract_ukrainian_annotation_fragment(doc_text)
+                    
+                    # Витягування посилань з блоку "Список использованной литературы" зі сторінки сайту (українська)
+                    references_links_ua = extract_references_section(page_url_ua) if page_url_ua else []
+                    
+                    # Перевірка наявності редакторів на сторінці (українська)
+                    has_editor_ua, found_editors_ua = check_editors_on_page(page_text_ua) if page_text_ua else (False, [])
+
+                    # Порівняння для української локалі
+                    min_sim_ua, avg_sim_ua, missing_ua = compare_texts(
+                        doc_fragment_ua, page_text_ua, threshold, chunk_size
+                    ) if doc_fragment_ua and page_text_ua else (0.0, 0.0, [])
+
+                    # Сохраняем только превью текстов и ссылки — полные тексты будем подгружать при раскрытии
+                    results.append({
+                        'index': idx,
+                        # Російська локаль
+                        'min_similarity_ru': round(min_sim_ru, 1),
+                        'avg_similarity_ru': round(avg_sim_ru, 1),
+                        'missing_count_ru': len(missing_ru),
+                        'missing_fragments_ru': missing_ru,
+                        'page_url_ru': page_url_ru,
+                        'references_links_ru': references_links_ru,
+                        'has_editor_ru': has_editor_ru,
+                        'found_editors_ru': found_editors_ru,
+                        # Українська локаль
+                        'min_similarity_ua': round(min_sim_ua, 1),
+                        'avg_similarity_ua': round(avg_sim_ua, 1),
+                        'missing_count_ua': len(missing_ua),
+                        'missing_fragments_ua': missing_ua,
+                        'page_url_ua': page_url_ua,
+                        'references_links_ua': references_links_ua,
+                        'has_editor_ua': has_editor_ua,
+                        'found_editors_ua': found_editors_ua,
+                        # Загальні дані
+                        'doc_preview': doc_text[:2000] if doc_text else "",
+                        'page_preview_ru': page_text_ru[:2000] if page_text_ru else "",
+                        'page_preview_ua': page_text_ua[:2000] if page_text_ua else "",
+                        'doc_url': doc_url
+                    })
+
+                    progress_bar.progress((idx + 1) / len(df))
+                
+                st.session_state.results = results
+                status_text.text("✅ Перевірка завершена!")
+                progress_bar.empty()
+                
+                # Випадкова анімація завершення
+                import random
+                animations = [st.balloons, st.snow]
+                random.choice(animations)()
+        
+        # Відображення результатів
+        if 'results' in st.session_state:
+            st.markdown("---")
+            st.header("📋 Результати перевірки")
+            
+            results_df = pd.DataFrame(st.session_state.results)
+            # Map results by original index to allow safe lookup after filtering
+            results_map = {r['index']: r for r in st.session_state.results}
+            display_df = df.copy()
+            
+            # Російська локаль
+            display_df['Мін. схожість RU (%)'] = results_df['min_similarity_ru']
+            display_df['Сер. схожість RU (%)'] = results_df['avg_similarity_ru']
+            display_df['Проблемних фрагментів RU'] = results_df['missing_count_ru']
+            
+            # Українська локаль
+            display_df['Мін. схожість UA (%)'] = results_df['min_similarity_ua']
+            display_df['Сер. схожість UA (%)'] = results_df['avg_similarity_ua']
+            display_df['Проблемних фрагментів UA'] = results_df['missing_count_ua']
+            
+            # Мінімальна схожість з обох локалей для фільтрації
+            display_df['Мін. схожість (%)'] = display_df[['Мін. схожість RU (%)', 'Мін. схожість UA (%)']].min(axis=1)
+            
+            # Фільтрація
+            if show_problems_only:
+                display_df = display_df[display_df['Мін. схожість (%)'] < threshold]
+            
+            # Статистика для російської локалі
+            st.markdown("### 🇷🇺 Російська локаль")
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Всього записів", len(df))
+            with col2:
+                good_ru = len(display_df[display_df['Мін. схожість RU (%)'] >= threshold])
+                st.metric("Добре", good_ru, delta=f"{good_ru/len(df)*100:.0f}%")
+            with col3:
+                warning_ru = len(display_df[(display_df['Мін. схожість RU (%)'] >= threshold-15) & 
+                                           (display_df['Мін. схожість RU (%)'] < threshold)])
+                st.metric("Увага", warning_ru, delta=f"{warning_ru/len(df)*100:.0f}%")
+            with col4:
+                problem_ru = len(display_df[display_df['Мін. схожість RU (%)'] < threshold-15])
+                st.metric("Проблема", problem_ru, delta=f"{problem_ru/len(df)*100:.0f}%")
+            
+            # Статистика для української локалі
+            st.markdown("### 🇺🇦 Українська локаль")
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Всього записів", len(df))
+            with col2:
+                good_ua = len(display_df[display_df['Мін. схожість UA (%)'] >= threshold])
+                st.metric("Добре", good_ua, delta=f"{good_ua/len(df)*100:.0f}%")
+            with col3:
+                warning_ua = len(display_df[(display_df['Мін. схожість UA (%)'] >= threshold-15) & 
+                                          (display_df['Мін. схожість UA (%)'] < threshold)])
+                st.metric("Увага", warning_ua, delta=f"{warning_ua/len(df)*100:.0f}%")
+            with col4:
+                problem_ua = len(display_df[display_df['Мін. схожість UA (%)'] < threshold-15])
+                st.metric("Проблема", problem_ua, delta=f"{problem_ua/len(df)*100:.0f}%")
+            
+            st.markdown("---")
+            
+            # Таблиця результатів - окремі записи для кожної локалі
+            for idx, row in display_df.iterrows():
+                result = results_map.get(idx, {})
+                doc_url = row.get('Посилання на відповідь анотацію, анкор', '')
+                
+                # Російська локаль - окремий запис
+                min_sim_ru = row['Мін. схожість RU (%)']
+                avg_sim_ru = row['Сер. схожість RU (%)']
+                
+                # Визначення статусу для російської локалі
+                if min_sim_ru >= threshold:
+                    status_icon_ru = "🟢"
+                    status_color_ru = "green"
+                elif min_sim_ru >= threshold - 15:
+                    status_icon_ru = "🟡"
+                    status_color_ru = "orange"
+                else:
+                    status_icon_ru = "🔴"
+                    status_color_ru = "red"
+                
+                with st.expander(
+                    f"{status_icon_ru} 🇷🇺 **{row.get('Питання UKR', 'N/A')}** (RU) | Схожість: {min_sim_ru}% | Фрагментів: {row['Проблемних фрагментів RU']}"
+                ):
+                    col1, col2 = st.columns([1, 1])
+                    
+                    with col1:
+                        st.markdown(f"**Мінімальна схожість:** :{status_color_ru}[{min_sim_ru}%]")
+                        st.markdown(f"**Середня схожість:** {avg_sim_ru}%")
+                        st.markdown(f"**Проблемних фрагментів:** {row['Проблемних фрагментів RU']}")
+                    
+                    with col2:
+                        page_url_ru = result.get('page_url_ru', '')
+                        if doc_url:
+                            st.link_button("📄 Відкрити Google Doc", doc_url, use_container_width=True)
+                        if page_url_ru:
+                            st.link_button("🌐 Відкрити сторінку", page_url_ru, use_container_width=True)
+                    
+                    # Проблемні фрагменти (російська)
+                    missing_fragments_ru = result.get('missing_fragments_ru', [])
+                    if missing_fragments_ru:
+                        st.markdown("### ⚠️ Ймовірно відсутні фрагменти:")
+                        for i, fragment in enumerate(missing_fragments_ru, 1):
+                            st.warning(f"**Фрагмент {i}** (схожість: {fragment['score']}%)\n\n{fragment['text']}")
+                    else:
+                        st.success("✅ Всі фрагменти знайдено на сторінці!")
+                    
+                    # Список использованной литературы (російська)
+                    references_links_ru = result.get('references_links_ru', [])
+                    if references_links_ru:
+                        st.markdown("### 📚 Список использованной литературы:")
+                        for i, link in enumerate(references_links_ru, 1):
+                            st.markdown(f"{i}. [{link}]({link})")
+                    else:
+                        st.error("❌ Помилка: Блок 'Список использованной литературы' не знайдено або не містить посилань")
+                    
+                    # Перевірка наявності редактора (російська)
+                    has_editor_ru = result.get('has_editor_ru', False)
+                    found_editors_ru = result.get('found_editors_ru', [])
+                    if has_editor_ru and found_editors_ru:
+                        editors_list_ru = ", ".join([f"**{editor}**" for editor in found_editors_ru])
+                        st.success(f"✅ Редактор(и) знайдено: {editors_list_ru}")
+                    else:
+                        st.error("❌ Помилка: Редактор не знайдено на сторінці (очікується: 'Щербаченко Юлія' або 'Севрюков Олександр Вікторович')")
+
+                    # Додаткова інформація — підвантажуємо повні тексти при відкритті (кешуються функціями)
+                    with st.expander("🔍 Детальна інформація"):
+                        tab1, tab2 = st.tabs(["Текст з Docs", "Текст зі сторінки"])
+
+                        with tab1:
+                            if doc_url:
+                                full_doc = get_doc_text(doc_url)
+                                if full_doc:
+                                    display_text = full_doc if len(full_doc) <= 5000 else full_doc[:5000] + "..."
+                                    st.text_area(
+                                        "Повний текст з Google Docs",
+                                        display_text,
+                                        height=300,
+                                        key=f"doc_text_ru_{idx}"
+                                    )
+                                else:
+                                    st.info("Не вдалося завантажити текст з документа")
+                            else:
+                                st.info("Посилання на документ не вказане")
+
+                        with tab2:
+                            page_url_ru = result.get('page_url_ru', '')
+                            if page_url_ru:
+                                full_page_ru = get_page_text(page_url_ru)
+                                if full_page_ru:
+                                    display_text = full_page_ru if len(full_page_ru) <= 5000 else full_page_ru[:5000] + "..."
+                                    st.text_area(
+                                        "Повний текст зі сторінки",
+                                        display_text,
+                                        height=300,
+                                        key=f"page_text_ru_{idx}"
+                                    )
+                                else:
+                                    st.info("Не вдалося завантажити текст зі сторінки")
+                            else:
+                                st.info("Посилання на сторінці не вказане")
+
+                
+                # Українська локаль - окремий запис
+                min_sim_ua = row['Мін. схожість UA (%)']
+                avg_sim_ua = row['Сер. схожість UA (%)']
+                
+                # Визначення статусу для української локалі
+                if min_sim_ua >= threshold:
+                    status_icon_ua = "🟢"
+                    status_color_ua = "green"
+                elif min_sim_ua >= threshold - 15:
+                    status_icon_ua = "🟡"
+                    status_color_ua = "orange"
+                else:
+                    status_icon_ua = "🔴"
+                    status_color_ua = "red"
+                
+                with st.expander(
+                    f"{status_icon_ua} 🇺🇦 **{row.get('Питання UKR', 'N/A')}** (UA) | Схожість: {min_sim_ua}% | Фрагментів: {row['Проблемних фрагментів UA']}"
+                ):
+                    col1, col2 = st.columns([1, 1])
+                    
+                    with col1:
+                        st.markdown(f"**Мінімальна схожість:** :{status_color_ua}[{min_sim_ua}%]")
+                        st.markdown(f"**Середня схожість:** {avg_sim_ua}%")
+                        st.markdown(f"**Проблемних фрагментів:** {row['Проблемних фрагментів UA']}")
+                    
+                    with col2:
+                        page_url_ua = result.get('page_url_ua', '')
+                        if doc_url:
+                            st.link_button("📄 Відкрити Google Doc", doc_url, use_container_width=True)
+                        if page_url_ua:
+                            st.link_button("🌐 Відкрити сторінку", page_url_ua, use_container_width=True)
+                    
+                    # Проблемні фрагменти (українська)
+                    missing_fragments_ua = result.get('missing_fragments_ua', [])
+                    if missing_fragments_ua:
+                        st.markdown("### ⚠️ Ймовірно відсутні фрагменти:")
+                        for i, fragment in enumerate(missing_fragments_ua, 1):
+                            st.warning(f"**Фрагмент {i}** (схожість: {fragment['score']}%)\n\n{fragment['text']}")
+                    else:
+                        if min_sim_ua > 0:  # Перевірка була виконана
+                            st.success("✅ Всі фрагменти знайдено на сторінці!")
+                        else:
+                            st.info("ℹ️ Перевірка не виконана (можливо, відсутня українська версія або фрагмент 'Перевод аннотации')")
+                    
+                    # Список использованной литературы (українська)
+                    references_links_ua = result.get('references_links_ua', [])
+                    if references_links_ua:
+                        st.markdown("### 📚 Список использованной литературы:")
+                        for i, link in enumerate(references_links_ua, 1):
+                            st.markdown(f"{i}. [{link}]({link})")
+                    else:
+                        if page_url_ua:
+                            st.error("❌ Помилка: Блок 'Список использованной литературы' не знайдено або не містить посилань")
+                    
+                    # Перевірка наявності редактора (українська)
+                    has_editor_ua = result.get('has_editor_ua', False)
+                    found_editors_ua = result.get('found_editors_ua', [])
+                    if has_editor_ua and found_editors_ua:
+                        editors_list_ua = ", ".join([f"**{editor}**" for editor in found_editors_ua])
+                        st.success(f"✅ Редактор(и) знайдено: {editors_list_ua}")
+                    else:
+                        if page_url_ua:
+                            st.error("❌ Помилка: Редактор не знайдено на сторінці (очікується: 'Щербаченко Юлія' або 'Севрюков Олександр Вікторович')")
+
+                    # Додаткова інформація — підвантажуємо повні тексти при відкритті (кешуються функціями)
+                    with st.expander("🔍 Детальна інформація"):
+                        tab1, tab2 = st.tabs(["Текст з Docs", "Текст зі сторінки"])
+
+                        with tab1:
+                            if doc_url:
+                                full_doc = get_doc_text(doc_url)
+                                if full_doc:
+                                    display_text = full_doc if len(full_doc) <= 5000 else full_doc[:5000] + "..."
+                                    st.text_area(
+                                        "Повний текст з Google Docs",
+                                        display_text,
+                                        height=300,
+                                        key=f"doc_text_ua_{idx}"
+                                    )
+                                else:
+                                    st.info("Не вдалося завантажити текст з документа")
+                            else:
+                                st.info("Посилання на документ не вказане")
+
+                        with tab2:
+                            page_url_ua = result.get('page_url_ua', '')
+                            if page_url_ua:
+                                full_page_ua = get_page_text(page_url_ua)
+                                if full_page_ua:
+                                    display_text = full_page_ua if len(full_page_ua) <= 5000 else full_page_ua[:5000] + "..."
+                                    st.text_area(
+                                        "Повний текст зі сторінки",
+                                        display_text,
+                                        height=300,
+                                        key=f"page_text_ua_{idx}"
+                                    )
+                                else:
+                                    st.info("Не вдалося завантажити текст зі сторінки")
+                            else:
+                                st.info("Посилання на сторінці не вказане")
+
+    else:
+        st.error("❌ Не вдалося завантажити дані. Перевірте підключення до Google Sheets.")
+
+# Режим 2: Перевірка контенту
+else:
+    st.markdown("Перевіряємо наявність тега `<script type='application/ld+json'>`, списку літератури та редакторів")
     st.markdown("---")
     
-    # Кнопка оновлення
-    if st.button("🔄 Оновити дані", use_container_width=True):
-        st.cache_data.clear()
-        st.session_state.data = None
-        st.rerun()
+    with st.sidebar:
+        st.header("⚙️ Налаштування")
+        
+        if st.button("🔄 Оновити дані контенту", use_container_width=True, key="refresh_content"):
+            st.cache_data.clear()
+            st.session_state.content_data = None
+            st.rerun()
     
-    st.markdown("---")
-    st.markdown("### 📊 Легенда")
-    st.markdown(f"""
-    - 🟢 **Добре**: ≥ {threshold}%
-    - 🟡 **Увага**: {threshold-15}–{threshold-1}%
-    - 🔴 **Проблема**: < {threshold-15}%
-    """)
-
-# Завантаження даних
-if st.session_state.data is None:
-    with st.spinner("Завантаження даних з Google Sheets..."):
-        st.session_state.data = load_data_from_sheets()
-
-df = st.session_state.data
-
-if df is not None and not df.empty:
-    st.success(f"✅ Завантажено {len(df)} записів")
+    # Ініціалізація session state для вкладки 2
+    if 'content_data' not in st.session_state:
+        st.session_state.content_data = None
     
-    # Кнопка для запуску перевірки
-    col1, col2, col3 = st.columns([2, 1, 1])
-    with col1:
-        if st.button("🚀 Запустити перевірку всіх записів", type="primary", use_container_width=True):
+    # Завантаження даних
+    if st.session_state.content_data is None:
+        with st.spinner('Завантаження даних для перевірки контенту...'):
+            st.session_state.content_data = load_content_check_data()
+    
+    content_df = st.session_state.content_data
+    
+    if content_df is not None and not content_df.empty:
+        st.success(f"✅ Завантажено {len(content_df)} записів")
+        
+        # Кнопка для запуску перевірки
+        if st.button("🚀 Запустити перевірку контенту", type="primary", use_container_width=True, key="start_content_check"):
             progress_bar = st.progress(0)
             status_text = st.empty()
             
-            results = []
-            for idx, row in df.iterrows():
-                status_text.text(f"Перевірка {idx + 1} з {len(df)}: {row.get('Питання UKR', 'N/A')}")
-
-                doc_url = row.get('Посилання на відповідь анотацію, анкор', '')
-                base_page_url = row.get('Посилання на сайті', '') or row.get('Посилання', '') or row.get('Посилання на сторінці', '') or row.get('URL', '') or ''
-
+            content_results = []
+            for idx, row in content_df.iterrows():
+                base_url = row.get('URL', '')
+                question = row.get('Название', 'N/A')  # Назва товару/бренду
+                
+                status_text.text(f"Перевірка {idx + 1} з {len(content_df)}: {base_url[:50]}...")
+                
                 # Перевірка валідності URL
-                if not base_page_url or not (base_page_url.startswith('http://') or base_page_url.startswith('https://')):
-                    st.warning(f"Пропущено запис {idx + 1} через невалідний URL: {base_page_url}")
-                    results.append({
-                        'Питання UKR': row.get('Питання UKR', 'N/A'),
-                        'Статус': 'Помилка',
-                        'Деталі': f"Невалідний або відсутній URL: {base_page_url}",
-                        'page_url_ru': base_page_url,
-                        'page_url_ua': base_page_url,
-                        'doc_url': doc_url,
-                        'score_ru': 0,
-                        'score_ua': 0,
+                if not base_url or not (base_url.startswith('http://') or base_url.startswith('https://')):
+                    content_results.append({
+                        'index': idx,
+                        'url': base_url,
+                        'url_ru': base_url,
+                        'url_ua': base_url,
+                        'ld_json_ru': False,
+                        'ld_json_ua': False,
+                        'has_references_ru': False,
+                        'has_references_ua': False,
+                        'references_count_ru': 0,
+                        'references_count_ua': 0,
+                        'references_links_ru': [],
+                        'references_links_ua': [],
                         'has_editor_ru': False,
                         'has_editor_ua': False,
                         'found_editors_ru': [],
                         'found_editors_ua': [],
-                        'references_links_ru': [],
-                        'references_links_ua': []
+                        'error': True,
+                        'error_message': f"Невалідний URL: {base_url}"
                     })
                     continue
-
-                # Генерація URL для кожної локалі
-                page_url_ru = generate_russian_url(base_page_url)
-                page_url_ua = generate_ukrainian_url(base_page_url)
-
-                # Отримання текстів для російської локалі
-                doc_text = get_doc_text(doc_url)
-                page_text_ru = get_page_text(page_url_ru)
                 
-                # Витягування фрагмента "Аннотация" для російської локалі
-                doc_fragment_ru = extract_annotation_fragment(doc_text)
+                # Генерація URL для локалей
+                url_ru = generate_russian_url(base_url)
+                url_ua = generate_ukrainian_url(base_url)
                 
-                # Перевірка: якщо фрагмент занадто довгий (більше 80% від всього тексту),
-                # можливо маркер не знайдено і повернуто весь текст
-                if doc_fragment_ru and len(doc_fragment_ru) > len(doc_text) * 0.8:
-                    # Спробуємо знайти "Аннотация" вручну
-                    annotation_match = re.search(r'Аннотация\s*:\s*(.*?)(?=\s*(?:Анкор|Перевод|$))', doc_text, re.IGNORECASE | re.DOTALL)
-                    if annotation_match:
-                        doc_fragment_ru = annotation_match.group(1).strip()
-                
-                # Витягування посилань з блоку "Список использованной литературы" зі сторінки сайту (російська)
-                references_links_ru = extract_references_section(page_url_ru)
-                
-                # Перевірка наявності редакторів на сторінці (російська)
+                # Перевірка російської локалі
+                ld_json_ru = check_ld_json_script(url_ru)
+                references_ru = extract_references_section(url_ru)
+                page_text_ru = get_page_text(url_ru)
                 has_editor_ru, found_editors_ru = check_editors_on_page(page_text_ru)
-
-                # Порівняння для російської локалі
-                min_sim_ru, avg_sim_ru, missing_ru = compare_texts(
-                    doc_fragment_ru, page_text_ru, threshold, chunk_size
-                )
-
+                
                 # Перевірка української локалі
-                page_text_ua = get_page_text(page_url_ua) if page_url_ua else ""
+                ld_json_ua = check_ld_json_script(url_ua)
+                references_ua = extract_references_section(url_ua)
+                page_text_ua = get_page_text(url_ua)
+                has_editor_ua, found_editors_ua = check_editors_on_page(page_text_ua)
                 
-                # Витягування фрагмента "Перевод аннотации" для української локалі
-                doc_fragment_ua = extract_ukrainian_annotation_fragment(doc_text)
-                
-                # Витягування посилань з блоку "Список использованной литературы" зі сторінки сайту (українська)
-                references_links_ua = extract_references_section(page_url_ua) if page_url_ua else []
-                
-                # Перевірка наявності редакторів на сторінці (українська)
-                has_editor_ua, found_editors_ua = check_editors_on_page(page_text_ua) if page_text_ua else (False, [])
-
-                # Порівняння для української локалі
-                min_sim_ua, avg_sim_ua, missing_ua = compare_texts(
-                    doc_fragment_ua, page_text_ua, threshold, chunk_size
-                ) if doc_fragment_ua and page_text_ua else (0.0, 0.0, [])
-
-                # Сохраняем только превью текстов и ссылки — полные тексты будем подгружать при раскрытии
-                results.append({
+                content_results.append({
                     'index': idx,
-                    # Російська локаль
-                    'min_similarity_ru': round(min_sim_ru, 1),
-                    'avg_similarity_ru': round(avg_sim_ru, 1),
-                    'missing_count_ru': len(missing_ru),
-                    'missing_fragments_ru': missing_ru,
-                    'page_url_ru': page_url_ru,
-                    'references_links_ru': references_links_ru,
+                    'url': base_url,
+                    'url_ru': url_ru,
+                    'url_ua': url_ua,
+                    'ld_json_ru': ld_json_ru,
+                    'ld_json_ua': ld_json_ua,
+                    'has_references_ru': len(references_ru) > 0,
+                    'has_references_ua': len(references_ua) > 0,
+                    'references_count_ru': len(references_ru),
+                    'references_count_ua': len(references_ua),
+                    'references_links_ru': references_ru,
+                    'references_links_ua': references_ua,
                     'has_editor_ru': has_editor_ru,
-                    'found_editors_ru': found_editors_ru,
-                    # Українська локаль
-                    'min_similarity_ua': round(min_sim_ua, 1),
-                    'avg_similarity_ua': round(avg_sim_ua, 1),
-                    'missing_count_ua': len(missing_ua),
-                    'missing_fragments_ua': missing_ua,
-                    'page_url_ua': page_url_ua,
-                    'references_links_ua': references_links_ua,
                     'has_editor_ua': has_editor_ua,
+                    'found_editors_ru': found_editors_ru,
                     'found_editors_ua': found_editors_ua,
-                    # Загальні дані
-                    'doc_preview': doc_text[:2000] if doc_text else "",
-                    'page_preview_ru': page_text_ru[:2000] if page_text_ru else "",
-                    'page_preview_ua': page_text_ua[:2000] if page_text_ua else "",
-                    'doc_url': doc_url
+                    'error': False,
+                    'error_message': ''
                 })
-
-                progress_bar.progress((idx + 1) / len(df))
+                
+                progress_bar.progress((idx + 1) / len(content_df))
             
-            st.session_state.results = results
-            status_text.text("✅ Перевірка завершена!")
+            st.session_state.content_results = content_results
+            status_text.text("✅ Перевірка контенту завершена!")
             progress_bar.empty()
-    
-    # Відображення результатів
-    if 'results' in st.session_state:
-        st.markdown("---")
-        st.header("📋 Результати перевірки")
-        
-        results_df = pd.DataFrame(st.session_state.results)
-        # Map results by original index to allow safe lookup after filtering
-        results_map = {r['index']: r for r in st.session_state.results}
-        display_df = df.copy()
-        
-        # Російська локаль
-        display_df['Мін. схожість RU (%)'] = results_df['min_similarity_ru']
-        display_df['Сер. схожість RU (%)'] = results_df['avg_similarity_ru']
-        display_df['Проблемних фрагментів RU'] = results_df['missing_count_ru']
-        
-        # Українська локаль
-        display_df['Мін. схожість UA (%)'] = results_df['min_similarity_ua']
-        display_df['Сер. схожість UA (%)'] = results_df['avg_similarity_ua']
-        display_df['Проблемних фрагментів UA'] = results_df['missing_count_ua']
-        
-        # Мінімальна схожість з обох локалей для фільтрації
-        display_df['Мін. схожість (%)'] = display_df[['Мін. схожість RU (%)', 'Мін. схожість UA (%)']].min(axis=1)
-        
-        # Фільтрація
-        if show_problems_only:
-            display_df = display_df[display_df['Мін. схожість (%)'] < threshold]
-        
-        # Статистика для російської локалі
-        st.markdown("### 🇷🇺 Російська локаль")
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Всього записів", len(df))
-        with col2:
-            good_ru = len(display_df[display_df['Мін. схожість RU (%)'] >= threshold])
-            st.metric("Добре", good_ru, delta=f"{good_ru/len(df)*100:.0f}%")
-        with col3:
-            warning_ru = len(display_df[(display_df['Мін. схожість RU (%)'] >= threshold-15) & 
-                                       (display_df['Мін. схожість RU (%)'] < threshold)])
-            st.metric("Увага", warning_ru, delta=f"{warning_ru/len(df)*100:.0f}%")
-        with col4:
-            problem_ru = len(display_df[display_df['Мін. схожість RU (%)'] < threshold-15])
-            st.metric("Проблема", problem_ru, delta=f"{problem_ru/len(df)*100:.0f}%")
-        
-        # Статистика для української локалі
-        st.markdown("### 🇺🇦 Українська локаль")
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Всього записів", len(df))
-        with col2:
-            good_ua = len(display_df[display_df['Мін. схожість UA (%)'] >= threshold])
-            st.metric("Добре", good_ua, delta=f"{good_ua/len(df)*100:.0f}%")
-        with col3:
-            warning_ua = len(display_df[(display_df['Мін. схожість UA (%)'] >= threshold-15) & 
-                                      (display_df['Мін. схожість UA (%)'] < threshold)])
-            st.metric("Увага", warning_ua, delta=f"{warning_ua/len(df)*100:.0f}%")
-        with col4:
-            problem_ua = len(display_df[display_df['Мін. схожість UA (%)'] < threshold-15])
-            st.metric("Проблема", problem_ua, delta=f"{problem_ua/len(df)*100:.0f}%")
-        
-        st.markdown("---")
-        
-        # Таблиця результатів - окремі записи для кожної локалі
-        for idx, row in display_df.iterrows():
-            result = results_map.get(idx, {})
-            doc_url = row.get('Посилання на відповідь анотацію, анкор', '')
             
-            # Російська локаль - окремий запис
-            min_sim_ru = row['Мін. схожість RU (%)']
-            avg_sim_ru = row['Сер. схожість RU (%)']
+            # Випадкова анімація завершення
+            import random
+            animations = [st.balloons, st.snow]
+            random.choice(animations)()
+        
+        # Відображення результатів
+        if 'content_results' in st.session_state:
+            st.markdown("---")
+            st.header("📊 Результати перевірки контенту")
             
-            # Визначення статусу для російської локалі
-            if min_sim_ru >= threshold:
-                status_icon_ru = "🟢"
-                status_color_ru = "green"
-            elif min_sim_ru >= threshold - 15:
-                status_icon_ru = "🟡"
-                status_color_ru = "orange"
-            else:
-                status_icon_ru = "🔴"
-                status_color_ru = "red"
+            results_list = st.session_state.content_results
+            results_map = {r['index']: r for r in results_list}
             
-            with st.expander(
-                f"{status_icon_ru} 🇷🇺 **{row.get('Питання UKR', 'N/A')}** (RU) | Схожість: {min_sim_ru}% | Фрагментів: {row['Проблемних фрагментів RU']}"
-            ):
-                col1, col2 = st.columns([1, 1])
+            # Статистика для російської локалі
+            st.markdown("### 🇷🇺 Російська локаль")
+            col1, col2, col3, col4 = st.columns(4)
+            
+            total = len([r for r in results_list if not r['error']])
+            ld_json_ok_ru = len([r for r in results_list if r['ld_json_ru']])
+            references_ok_ru = len([r for r in results_list if r['has_references_ru']])
+            editors_ok_ru = len([r for r in results_list if r['has_editor_ru']])
+            
+            with col1:
+                st.metric("Всього записів", total)
+            with col2:
+                st.metric("LD+JSON тег ✅", ld_json_ok_ru, delta=f"{ld_json_ok_ru/total*100:.0f}%" if total > 0 else "0%")
+            with col3:
+                st.metric("Список літератури ✅", references_ok_ru, delta=f"{references_ok_ru/total*100:.0f}%" if total > 0 else "0%")
+            with col4:
+                st.metric("Редактори ✅", editors_ok_ru, delta=f"{editors_ok_ru/total*100:.0f}%" if total > 0 else "0%")
+            
+            # Статистика для української локалі
+            st.markdown("### 🇺🇦 Українська локаль")
+            col1, col2, col3, col4 = st.columns(4)
+            
+            ld_json_ok_ua = len([r for r in results_list if r['ld_json_ua']])
+            references_ok_ua = len([r for r in results_list if r['has_references_ua']])
+            editors_ok_ua = len([r for r in results_list if r['has_editor_ua']])
+            
+            with col1:
+                st.metric("Всього записів", total)
+            with col2:
+                st.metric("LD+JSON тег ✅", ld_json_ok_ua, delta=f"{ld_json_ok_ua/total*100:.0f}%" if total > 0 else "0%")
+            with col3:
+                st.metric("Список літератури ✅", references_ok_ua, delta=f"{references_ok_ua/total*100:.0f}%" if total > 0 else "0%")
+            with col4:
+                st.metric("Редактори ✅", editors_ok_ua, delta=f"{editors_ok_ua/total*100:.0f}%" if total > 0 else "0%")
+            
+            st.markdown("---")
+            
+            # Відображення детальних результатів
+            for idx, row in content_df.iterrows():
+                result = results_map.get(idx, {})
                 
-                with col1:
-                    st.markdown(f"**Мінімальна схожість:** :{status_color_ru}[{min_sim_ru}%]")
-                    st.markdown(f"**Середня схожість:** {avg_sim_ru}%")
-                    st.markdown(f"**Проблемних фрагментів:** {row['Проблемних фрагментів RU']}")
+                if result.get('error', False):
+                    with st.expander(f"❌ Помилка: {result.get('url', 'N/A')[:80]}"):
+                        st.error(result.get('error_message', 'Невідома помилка'))
+                    continue
                 
-                with col2:
-                    page_url_ru = result.get('page_url_ru', '')
-                    if doc_url:
-                        st.link_button("📄 Відкрити Google Doc", doc_url, use_container_width=True)
-                    if page_url_ru:
-                        st.link_button("🌐 Відкрити сторінку", page_url_ru, use_container_width=True)
-                
-                # Проблемні фрагменти (російська)
-                missing_fragments_ru = result.get('missing_fragments_ru', [])
-                if missing_fragments_ru:
-                    st.markdown("### ⚠️ Ймовірно відсутні фрагменти:")
-                    for i, fragment in enumerate(missing_fragments_ru, 1):
-                        st.warning(f"**Фрагмент {i}** (схожість: {fragment['score']}%)\n\n{fragment['text']}")
-                else:
-                    st.success("✅ Всі фрагменти знайдено на сторінці!")
-                
-                # Список использованной литературы (російська)
-                references_links_ru = result.get('references_links_ru', [])
-                if references_links_ru:
-                    st.markdown("### 📚 Список использованной литературы:")
-                    for i, link in enumerate(references_links_ru, 1):
-                        st.markdown(f"{i}. [{link}]({link})")
-                else:
-                    st.error("❌ Помилка: Блок 'Список использованной литературы' не знайдено або не містить посилань")
-                
-                # Перевірка наявності редактора (російська)
+                # Російська локаль
+                ld_json_ru = result.get('ld_json_ru', False)
+                has_refs_ru = result.get('has_references_ru', False)
                 has_editor_ru = result.get('has_editor_ru', False)
-                found_editors_ru = result.get('found_editors_ru', [])
-                if has_editor_ru and found_editors_ru:
-                    editors_list_ru = ", ".join([f"**{editor}**" for editor in found_editors_ru])
-                    st.success(f"✅ Редактор(и) знайдено: {editors_list_ru}")
-                else:
-                    st.error("❌ Помилка: Редактор не знайдено на сторінці (очікується: 'Щербаченко Юлія' або 'Севрюков Олександр Вікторович')")
-
-                # Додаткова інформація — підвантажуємо повні тексти при відкритті (кешуються функціями)
-                with st.expander("🔍 Детальна інформація"):
-                    tab1, tab2 = st.tabs(["Текст з Docs", "Текст зі сторінки"])
-
-                    with tab1:
-                        if doc_url:
-                            full_doc = get_doc_text(doc_url)
-                            if full_doc:
-                                display_text = full_doc if len(full_doc) <= 5000 else full_doc[:5000] + "..."
-                                st.text_area(
-                                    "Повний текст з Google Docs",
-                                    display_text,
-                                    height=300,
-                                    key=f"doc_text_ru_{idx}"
-                                )
-                            else:
-                                st.info("Не вдалося завантажити текст з документа")
+                
+                # Визначення статусу
+                all_ok_ru = ld_json_ru and has_refs_ru and has_editor_ru
+                status_icon_ru = "🟢" if all_ok_ru else "🔴"
+                status_text_ru = "Все OK" if all_ok_ru else "Є проблеми"
+                
+                with st.expander(
+                    f"{status_icon_ru} 🇷🇺 {result.get('url', 'N/A')[:80]}... (RU) | {status_text_ru}"
+                ):
+                    col1, col2 = st.columns([2, 1])
+                    
+                    with col1:
+                        # LD+JSON тег
+                        if ld_json_ru:
+                            st.success("✅ Тег `<script type='application/ld+json'>` знайдено")
                         else:
-                            st.info("Посилання на документ не вказане")
-
-                    with tab2:
-                        page_url_ru = result.get('page_url_ru', '')
-                        if page_url_ru:
-                            full_page_ru = get_page_text(page_url_ru)
-                            if full_page_ru:
-                                display_text = full_page_ru if len(full_page_ru) <= 5000 else full_page_ru[:5000] + "..."
-                                st.text_area(
-                                    "Повний текст зі сторінки",
-                                    display_text,
-                                    height=300,
-                                    key=f"page_text_ru_{idx}"
-                                )
-                            else:
-                                st.info("Не вдалося завантажити текст зі сторінки")
+                            st.error("❌ Тег `<script type='application/ld+json'>` НЕ знайдено")
+                        
+                        # Список літератури
+                        if has_refs_ru:
+                            refs_count = result.get('references_count_ru', 0)
+                            st.success(f"✅ Список літератури знайдено ({refs_count} посилань)")
+                            with st.expander("Переглянути посилання"):
+                                for i, link in enumerate(result.get('references_links_ru', []), 1):
+                                    st.markdown(f"{i}. [{link}]({link})")
                         else:
-                            st.info("Посилання на сторінці не вказане")
-            
-            # Українська локаль - окремий запис
-            min_sim_ua = row['Мін. схожість UA (%)']
-            avg_sim_ua = row['Сер. схожість UA (%)']
-            
-            # Визначення статусу для української локалі
-            if min_sim_ua >= threshold:
-                status_icon_ua = "🟢"
-                status_color_ua = "green"
-            elif min_sim_ua >= threshold - 15:
-                status_icon_ua = "🟡"
-                status_color_ua = "orange"
-            else:
-                status_icon_ua = "🔴"
-                status_color_ua = "red"
-            
-            with st.expander(
-                f"{status_icon_ua} 🇺🇦 **{row.get('Питання UKR', 'N/A')}** (UA) | Схожість: {min_sim_ua}% | Фрагментів: {row['Проблемних фрагментів UA']}"
-            ):
-                col1, col2 = st.columns([1, 1])
+                            st.error("❌ Список літератури НЕ знайдено")
+                        
+                        # Редактори
+                        if has_editor_ru:
+                            editors = result.get('found_editors_ru', [])
+                            editors_list = ", ".join([f"**{ed}**" for ed in editors])
+                            st.success(f"✅ Редактор(и) знайдено: {editors_list}")
+                        else:
+                            st.error("❌ Редактор НЕ знайдено")
+                    
+                    with col2:
+                        url_ru = result.get('url_ru', '')
+                        if url_ru:
+                            st.link_button("🌐 Відкрити сторінку", url_ru, use_container_width=True)
                 
-                with col1:
-                    st.markdown(f"**Мінімальна схожість:** :{status_color_ua}[{min_sim_ua}%]")
-                    st.markdown(f"**Середня схожість:** {avg_sim_ua}%")
-                    st.markdown(f"**Проблемних фрагментів:** {row['Проблемних фрагментів UA']}")
-                
-                with col2:
-                    page_url_ua = result.get('page_url_ua', '')
-                    if doc_url:
-                        st.link_button("📄 Відкрити Google Doc", doc_url, use_container_width=True)
-                    if page_url_ua:
-                        st.link_button("🌐 Відкрити сторінку", page_url_ua, use_container_width=True)
-                
-                # Проблемні фрагменти (українська)
-                missing_fragments_ua = result.get('missing_fragments_ua', [])
-                if missing_fragments_ua:
-                    st.markdown("### ⚠️ Ймовірно відсутні фрагменти:")
-                    for i, fragment in enumerate(missing_fragments_ua, 1):
-                        st.warning(f"**Фрагмент {i}** (схожість: {fragment['score']}%)\n\n{fragment['text']}")
-                else:
-                    if min_sim_ua > 0:  # Перевірка була виконана
-                        st.success("✅ Всі фрагменти знайдено на сторінці!")
-                    else:
-                        st.info("ℹ️ Перевірка не виконана (можливо, відсутня українська версія або фрагмент 'Перевод аннотации')")
-                
-                # Список использованной литературы (українська)
-                references_links_ua = result.get('references_links_ua', [])
-                if references_links_ua:
-                    st.markdown("### 📚 Список использованной литературы:")
-                    for i, link in enumerate(references_links_ua, 1):
-                        st.markdown(f"{i}. [{link}]({link})")
-                else:
-                    if page_url_ua:
-                        st.error("❌ Помилка: Блок 'Список использованной литературы' не знайдено або не містить посилань")
-                
-                # Перевірка наявності редактора (українська)
+                # Українська локаль
+                ld_json_ua = result.get('ld_json_ua', False)
+                has_refs_ua = result.get('has_references_ua', False)
                 has_editor_ua = result.get('has_editor_ua', False)
-                found_editors_ua = result.get('found_editors_ua', [])
-                if has_editor_ua and found_editors_ua:
-                    editors_list_ua = ", ".join([f"**{editor}**" for editor in found_editors_ua])
-                    st.success(f"✅ Редактор(и) знайдено: {editors_list_ua}")
-                else:
-                    if page_url_ua:
-                        st.error("❌ Помилка: Редактор не знайдено на сторінці (очікується: 'Щербаченко Юлія' або 'Севрюков Олександр Вікторович')")
-
-                # Додаткова інформація — підвантажуємо повні тексти при відкритті (кешуються функціями)
-                with st.expander("🔍 Детальна інформація"):
-                    tab1, tab2 = st.tabs(["Текст з Docs", "Текст зі сторінки"])
-
-                    with tab1:
-                        if doc_url:
-                            full_doc = get_doc_text(doc_url)
-                            if full_doc:
-                                display_text = full_doc if len(full_doc) <= 5000 else full_doc[:5000] + "..."
-                                st.text_area(
-                                    "Повний текст з Google Docs",
-                                    display_text,
-                                    height=300,
-                                    key=f"doc_text_ua_{idx}"
-                                )
-                            else:
-                                st.info("Не вдалося завантажити текст з документа")
+                
+                all_ok_ua = ld_json_ua and has_refs_ua and has_editor_ua
+                status_icon_ua = "🟢" if all_ok_ua else "🔴"
+                status_text_ua = "Все OK" if all_ok_ua else "Є проблеми"
+                
+                with st.expander(
+                    f"{status_icon_ua} 🇺🇦 {result.get('url', 'N/A')[:80]}... (UA) | {status_text_ua}"
+                ):
+                    col1, col2 = st.columns([2, 1])
+                    
+                    with col1:
+                        # LD+JSON тег
+                        if ld_json_ua:
+                            st.success("✅ Тег `<script type='application/ld+json'>` знайдено")
                         else:
-                            st.info("Посилання на документ не вказане")
-
-                    with tab2:
-                        page_url_ua = result.get('page_url_ua', '')
-                        if page_url_ua:
-                            full_page_ua = get_page_text(page_url_ua)
-                            if full_page_ua:
-                                display_text = full_page_ua if len(full_page_ua) <= 5000 else full_page_ua[:5000] + "..."
-                                st.text_area(
-                                    "Повний текст зі сторінки",
-                                    display_text,
-                                    height=300,
-                                    key=f"page_text_ua_{idx}"
-                                )
-                            else:
-                                st.info("Не вдалося завантажити текст зі сторінки")
+                            st.error("❌ Тег `<script type='application/ld+json'>` НЕ знайдено")
+                        
+                        # Список літератури
+                        if has_refs_ua:
+                            refs_count = result.get('references_count_ua', 0)
+                            st.success(f"✅ Список літератури знайдено ({refs_count} посилань)")
+                            with st.expander("Переглянути посилання"):
+                                for i, link in enumerate(result.get('references_links_ua', []), 1):
+                                    st.markdown(f"{i}. [{link}]({link})")
                         else:
-                            st.info("Посилання на сторінці не вказане")
-
-else:
-    st.error("❌ Не вдалося завантажити дані. Перевірте підключення до Google Sheets.")
+                            st.error("❌ Список літератури НЕ знайдено")
+                        
+                        # Редактори
+                        if has_editor_ua:
+                            editors = result.get('found_editors_ua', [])
+                            editors_list = ", ".join([f"**{ed}**" for ed in editors])
+                            st.success(f"✅ Редактор(и) знайдено: {editors_list}")
+                        else:
+                            st.error("❌ Редактор НЕ знайдено")
+                    
+                    with col2:
+                        url_ua = result.get('url_ua', '')
+                        if url_ua:
+                            st.link_button("🌐 Відкрити сторінку", url_ua, use_container_width=True)
+    else:
+        st.error("❌ Не вдалося завантажити дані. Перевірте підключення до Google Sheets.")
 
 # Футер
 st.markdown("---")

@@ -6,3 +6,4 @@ rapidfuzz
 google-auth
 google-api-python-client
 gspread
+streamlit-lottie
