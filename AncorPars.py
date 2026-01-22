@@ -1132,7 +1132,7 @@ if mode == "📝 Перевірка контенту":
             st.rerun()
         
         st.markdown("---")
-        st.markdown("### 📊 Легенда")
+        st.markdown("### 📊 Умовні позначення")
         st.markdown(f"""
         - 🟢 **Добре**: ≥ {threshold}%
         - 🟡 **Увага**: {threshold-15}–{threshold-1}%
