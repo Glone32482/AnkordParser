@@ -1545,6 +1545,14 @@ else:
     with st.sidebar:
         st.header("⚙️ Налаштування")
         
+        show_problems_only_content = st.checkbox(
+            "Показати тільки проблемні записи",
+            value=False,
+            key="show_problems_content"
+        )
+        
+        st.markdown("---")
+        
         if st.button("🔄 Оновити дані контенту", use_container_width=True, key="refresh_content"):
             st.cache_data.clear()
             st.session_state.content_data = None
@@ -1709,6 +1717,17 @@ else:
                 
                 # Визначення статусу
                 all_ok_ru = ld_json_ru and has_refs_ru and has_editor_ru
+                
+                # Українська локаль - перевіряємо статус заздалегідь для фільтрації
+                ld_json_ua = result.get('ld_json_ua', False)
+                has_refs_ua = result.get('has_references_ua', False)
+                has_editor_ua = result.get('has_editor_ua', False)
+                all_ok_ua = ld_json_ua and has_refs_ua and has_editor_ua
+                
+                # Фільтрація: пропускаємо запис якщо обидві локалі OK і увімкнено фільтр
+                if show_problems_only_content and all_ok_ru and all_ok_ua:
+                    continue
+                
                 status_icon_ru = "🟢" if all_ok_ru else "🔴"
                 status_text_ru = "Все OK" if all_ok_ru else "Є проблеми"
                 
@@ -1747,12 +1766,7 @@ else:
                         if url_ru:
                             st.link_button("🌐 Відкрити сторінку", url_ru, use_container_width=True)
                 
-                # Українська локаль
-                ld_json_ua = result.get('ld_json_ua', False)
-                has_refs_ua = result.get('has_references_ua', False)
-                has_editor_ua = result.get('has_editor_ua', False)
-                
-                all_ok_ua = ld_json_ua and has_refs_ua and has_editor_ua
+                # Українська локаль (змінні вже визначені вище для фільтрації)
                 status_icon_ua = "🟢" if all_ok_ua else "🔴"
                 status_text_ua = "Все OK" if all_ok_ua else "Є проблеми"
                 
