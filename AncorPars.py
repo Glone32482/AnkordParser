@@ -734,20 +734,20 @@ def load_content_check_data():
         client = gspread.authorize(creds)
 
         # Відкриваємо таблицю за URL
-        spreadsheet_url = "https://docs.google.com/spreadsheets/d/11Eo7g0Fpyi-ErgVl0qO_4xAehXUT4d1CFDPzYgdotFM/edit?usp=sharing"
+        spreadsheet_url = "https://docs.google.com/spreadsheets/d/1cBqEjoXdZ9vxhaFrnIjfTfuMJeWfMTULviAC9ucluCw/edit?usp=sharing"
         sh = client.open_by_url(spreadsheet_url)
         
         # Отримуємо аркуш за gid
-        # gid=728876521 - 'ТЗ тексты ИИ Ч.2 ВЕРЕСЕНЬ 2025'
+        # gid=412928380
         worksheet = None
         for ws in sh.worksheets():
-            if ws.id == 728876521:
+            if ws.id == 412928380:
                 worksheet = ws
                 st.info(f"✅ Відкрито аркуш: '{ws.title}' (gid: {ws.id})")
                 break
         
         if not worksheet:
-            st.error("Не знайдено аркуш з gid=728876521")
+            st.error("Не знайдено аркуш з gid=412928380")
             return pd.DataFrame()
         
         # Читаємо всі дані
@@ -759,8 +759,8 @@ def load_content_check_data():
         # Створюємо DataFrame
         df = pd.DataFrame(all_values)
         
-        # Заголовки знаходяться в рядку 1 (індекс 1), а не в рядку 0
-        header = df.iloc[1].tolist()
+        # Заголовки знаходяться в рядку 0 (перший рядок)
+        header = df.iloc[0].tolist()
         
         # Створюємо унікальні імена для колонок
         new_columns = []
@@ -776,8 +776,8 @@ def load_content_check_data():
                 new_columns.append(col)
         
         df.columns = new_columns
-        # Видаляємо перші 2 рядки (рядок 0 з загальним заголовком і рядок 1 з назвами колонок)
-        df = df.iloc[2:].reset_index(drop=True)
+        # Видаляємо перший рядок (заголовки)
+        df = df.iloc[1:].reset_index(drop=True)
 
         # Перевіряємо наявність колонки "URL"
         if 'URL' not in df.columns:
