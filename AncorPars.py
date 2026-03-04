@@ -719,7 +719,29 @@ def check_ld_json_script(page_url):
         st.warning(f"Помилка перевірки тега ld+json на {page_url}: {e}")
         return False
 
-# Функція для завантаження даних з листа "Перевірка контенту"
+
+# Функція для перевірки наявності 'FAQPage' у всьому HTML (використовується тільки для режиму "Перевірка розміщення текстів")
+@st.cache_data(ttl=3600)
+def check_faq_in_html(page_url):
+    """
+    Шукає просту наявність підрядка 'FAQPage' у HTML сторінки.
+    Повертає True якщо знайдено, False інакше.
+    """
+    if not page_url:
+        return False
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+        response = requests.get(page_url, headers=headers, timeout=10)
+        response.raise_for_status()
+
+        return 'FAQPage' in response.text
+    except Exception as e:
+        st.warning(f"Помилка перевірки FAQPage на {page_url}: {e}")
+        return False
+
+# Функція для завантаження даних з листа "Перевірка блоку \"Відповіді фармацевта\""
 @st.cache_data(ttl=600)
 def load_content_check_data():
     try:
@@ -1072,16 +1094,16 @@ with st.sidebar:
     st.title("🎯 Навігація")
     mode = st.radio(
         "Оберіть режим роботи:",
-        ["📝 Перевірка контенту", "🔍 Перевірка розміщення текстів"],
+        ["📝 Перевірка блоку \"Відповіді фармацевта\"", "🔍 Перевірка розміщення текстів"],
         key="mode_selector"
     )
     st.markdown("---")
 
 # Заголовок з міні-анімацією
-if mode == "📝 Перевірка контенту":
+if mode == "📝 Перевірка блоку \"Відповіді фармацевта\"":
     col_title1, col_title2 = st.columns([5, 1])
     with col_title1:
-        st.title("🔍 Перевірка контенту сторінок")
+        st.title("🔍 Перевірка блоку \"Відповіді фармацевта\" сторінок")
     with col_title2:
         if LOTTIE_ANIMATION:
             st_lottie(LOTTIE_ANIMATION, height=120, key="header_anim_1")
@@ -1095,8 +1117,8 @@ else:
 
 st.markdown("---")
 
-# Режим 1: Перевірка контенту
-if mode == "📝 Перевірка контенту":
+# Режим 1: Перевірка блоку "Відповіді фармацевта"
+if mode == "📝 Перевірка блоку \"Відповіді фармацевта\"":
     # Бічна панель з налаштуваннями
     with st.sidebar:
         st.header("⚙️ Налаштування")
@@ -1537,9 +1559,9 @@ if mode == "📝 Перевірка контенту":
     else:
         st.error("❌ Не вдалося завантажити дані. Перевірте підключення до Google Sheets.")
 
-# Режим 2: Перевірка контенту
+# Режим 2: Перевірка розміщення текстів (перевірка FAQPage / списку літератури та редакторів)
 else:
-    st.markdown("Перевіряємо наявність тега `<script type='application/ld+json'>`, списку літератури та редакторів")
+    st.markdown("Перевіряємо наявність 'FAQPage', списку літератури та редакторів")
     st.markdown("---")
     
     with st.sidebar:
@@ -1612,14 +1634,14 @@ else:
                 url_ru = generate_russian_url(base_url)
                 url_ua = generate_ukrainian_url(base_url)
                 
-                # Перевірка російської локалі
-                ld_json_ru = check_ld_json_script(url_ru)
+                # Перевірка російської локалі (шукаємо 'FAQPage' в усьому HTML)
+                ld_json_ru = check_faq_in_html(url_ru)
                 references_ru = extract_references_section(url_ru)
                 page_text_ru = get_page_text(url_ru)
                 has_editor_ru, found_editors_ru = check_editors_on_page(page_text_ru)
                 
-                # Перевірка української локалі
-                ld_json_ua = check_ld_json_script(url_ua)
+                # Перевірка української локалі (шукаємо 'FAQPage' в усьому HTML)
+                ld_json_ua = check_faq_in_html(url_ua)
                 references_ua = extract_references_section(url_ua)
                 page_text_ua = get_page_text(url_ua)
                 has_editor_ua, found_editors_ua = check_editors_on_page(page_text_ua)
@@ -1648,7 +1670,7 @@ else:
                 progress_bar.progress((idx + 1) / len(content_df))
             
             st.session_state.content_results = content_results
-            status_text.text("✅ Перевірка контенту завершена!")
+            status_text.text("✅ Перевірка блоку \"Відповіді фармацевта\" завершена!")
             progress_bar.empty()
             
             # Випадкова анімація завершення
@@ -1676,7 +1698,7 @@ else:
             with col1:
                 st.metric("Всього записів", total)
             with col2:
-                st.metric("LD+JSON тег ✅", ld_json_ok_ru, delta=f"{ld_json_ok_ru/total*100:.0f}%" if total > 0 else "0%")
+                st.metric("FAQPage ✅", ld_json_ok_ru, delta=f"{ld_json_ok_ru/total*100:.0f}%" if total > 0 else "0%")
             with col3:
                 st.metric("Список літератури ✅", references_ok_ru, delta=f"{references_ok_ru/total*100:.0f}%" if total > 0 else "0%")
             with col4:
@@ -1693,7 +1715,7 @@ else:
             with col1:
                 st.metric("Всього записів", total)
             with col2:
-                st.metric("LD+JSON тег ✅", ld_json_ok_ua, delta=f"{ld_json_ok_ua/total*100:.0f}%" if total > 0 else "0%")
+                st.metric("FAQPage ✅", ld_json_ok_ua, delta=f"{ld_json_ok_ua/total*100:.0f}%" if total > 0 else "0%")
             with col3:
                 st.metric("Список літератури ✅", references_ok_ua, delta=f"{references_ok_ua/total*100:.0f}%" if total > 0 else "0%")
             with col4:
@@ -1737,11 +1759,11 @@ else:
                     col1, col2 = st.columns([2, 1])
                     
                     with col1:
-                        # LD+JSON тег
+                        # FAQPage
                         if ld_json_ru:
-                            st.success("✅ Тег `<script type='application/ld+json'>` знайдено")
+                            st.success("✅ 'FAQPage' знайдено")
                         else:
-                            st.error("❌ Тег `<script type='application/ld+json'>` НЕ знайдено")
+                            st.error("❌ 'FAQPage' НЕ знайдено")
                         
                         # Список літератури
                         if has_refs_ru:
@@ -1776,11 +1798,11 @@ else:
                     col1, col2 = st.columns([2, 1])
                     
                     with col1:
-                        # LD+JSON тег
+                        # FAQPage
                         if ld_json_ua:
-                            st.success("✅ Тег `<script type='application/ld+json'>` знайдено")
+                            st.success("✅ 'FAQPage' знайдено")
                         else:
-                            st.error("❌ Тег `<script type='application/ld+json'>` НЕ знайдено")
+                            st.error("❌ 'FAQPage' НЕ знайдено")
                         
                         # Список літератури
                         if has_refs_ua:
