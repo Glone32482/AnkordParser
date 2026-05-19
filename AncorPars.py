@@ -300,7 +300,6 @@ def get_docs_service():
         return None
 
 # Функція для завантаження даних з Google Sheets
-@st.cache_data(ttl=600)
 def load_data_from_sheets():
     try:
         # Використовуємо сервісний акаунт із надійного хелпера
@@ -374,7 +373,7 @@ def load_data_from_sheets():
 
         return df
     except Exception as e:
-        st.error(f"Помилка завантаження даних: {e}")
+        st.error(f"❌ Помилка завантаження даних: {e}")
         return None
 
 # Функція для витягування document ID з URL
@@ -1558,6 +1557,9 @@ if mode == "📝 Перевірка блоку \"Відповіді фармац
 
     else:
         st.error("❌ Не вдалося завантажити дані. Перевірте підключення до Google Sheets.")
+        if st.button("🔄 Спробувати ще раз"):
+            st.session_state.data = None
+            st.rerun()
 
 # Режим 2: Перевірка розміщення текстів (перевірка FAQPage / списку літератури та редакторів)
 else:
